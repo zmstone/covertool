@@ -15,6 +15,9 @@
 %% mix callbacks
 -export([start/2]).
 
+%% to minimise git diff
+-export([lookup_source/1]).
+
 -include("covertool.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
@@ -173,7 +176,7 @@ generate_packages(AppName, PrefixLen, Modules) ->
 package_name(AppName, PrefixLen, Module)
     when is_atom(AppName), is_atom(Module) ->
     AppNameStr = atom_to_list(AppName),
-    SourceDirs = case lookup_source(Module) of
+    SourceDirs = case lookup_source2(Module) of
                     false ->
                         [];
                     SourceFile ->
@@ -212,7 +215,7 @@ generate_classes(Modules) ->
 
     % Skip modules without sources
     Filter = fun(Module) ->
-                     case lookup_source(Module) of
+                     case lookup_source2(Module) of
                          false -> false;
                          _Other -> true
                      end
@@ -242,7 +245,7 @@ generate_class(Module) ->
     {LinesData, Result} = lists:mapfoldl(Fun, #result{}, Lines2),
 
     Data = {class, [{name, Module},
-                    {filename, lookup_source(Module)},
+                    {filename, lookup_source2(Module)},
                     {'line-rate', rate(Result#result.line)},
                     {'branch-rate', rate(Result#result.branches)},
                     {complexity, 0}],
@@ -300,6 +303,12 @@ rate({Covered, Valid}) -> float_to_list(Covered / Valid, [{decimals, 3}, compact
 percentage({_Covered, 0}) -> "100.0%";
 percentage({Covered, Valid}) ->
     float_to_list(100 * Covered / Valid, [{decimals, 1}, compact]) ++ "%".
+
+%% for modules compiled with 'deterministic' flag, there is no 'source' in compile_info
+lookup_source2(Module) ->
+    % this is experimental
+    F = persistent_term:get(covertool_source_lookup_fn),
+    F(Module).
 
 % lookup source in source directory
 lookup_source(Module) ->
